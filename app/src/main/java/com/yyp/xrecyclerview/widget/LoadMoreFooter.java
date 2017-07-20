@@ -1,28 +1,32 @@
 package com.yyp.xrecyclerview.widget;
 
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.support.annotation.Nullable;
-import android.support.v7.widget.RecyclerView;
 import android.util.AttributeSet;
 import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import com.yyp.xrecyclerview.R;
+import com.yyp.xrecyclerview.widget.interfaces.BaseFooter;
+
 /** 底部上拉加载
  * Created by yyp on 2017/7/18.
  */
-public class LoadMoreFooter extends LinearLayout {
-    public final static int STATE_LOADING = 0;
-    public final static int STATE_COMPLETE = 1;
-    public final static int STATE_NOMORE = 2;
+public class LoadMoreFooter extends LinearLayout implements BaseFooter{
+
+    private View mContainer;
+    private TextView mStatusTextView;
     private ProgressBar progressBar;
-    private TextView mText;
-    private String loadingHint;
-    private String noMoreHint;
-    private String loadingDoneHint;
+
+    private int mState = STATE_NORMAL;
+
+    public int mMeasuredHeight;
 
     public LoadMoreFooter(Context context) {
         super(context);
@@ -39,64 +43,144 @@ public class LoadMoreFooter extends LinearLayout {
         initView();
     }
 
-    public void setLoadingHint(String hint) {
-        loadingHint = hint;
-    }
-
-    public void setNoMoreHint(String hint) {
-        noMoreHint = hint;
-    }
-
-    public void setLoadingDoneHint(String hint) {
-        loadingDoneHint = hint;
-    }
-
     public void initView(){
+        // 初始情况，设置上拉加载view高度为0
+        mContainer = LayoutInflater.from(getContext()).inflate(R.layout.xrecyclerview_footer_view, null);
+        LayoutParams lp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
+        lp.setMargins(0, 0, 0, 0);
+        this.setLayoutParams(lp);
+        this.setPadding(0, 0, 0, 0);
 
-        RecyclerView.LayoutParams mLayoutParams = new RecyclerView.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        mLayoutParams.setMargins(20,20,20,20);
-        setLayoutParams(mLayoutParams);
-        setGravity(Gravity.CENTER);
+        addView(mContainer, new LayoutParams(LayoutParams.MATCH_PARENT, 0));
+        setGravity(Gravity.TOP);
 
-        progressBar = new ProgressBar(getContext());
-        progressBar.setProgress(android.R.style.Widget_ProgressBar_Inverse);
-        progressBar.setLayoutParams(new ViewGroup.LayoutParams(100, 100));
-        addView(progressBar);
+        mStatusTextView = findViewById(R.id.footer_status_text);
+        progressBar = findViewById(R.id.footer_progressbar);
 
-        mText = new TextView(getContext());
-        mText.setText("正在加载...");
-        loadingHint = "正在加载...";
-        noMoreHint = "已经到底了";
-        loadingDoneHint = "加载完成";
-        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT
-                , ViewGroup.LayoutParams.WRAP_CONTENT);
-        layoutParams.setMargins(40,0,0,0);
-
-        mText.setLayoutParams(layoutParams);
-        addView(mText);
+        measure(ViewGroup.LayoutParams.WRAP_CONTENT,ViewGroup.LayoutParams.WRAP_CONTENT);
+        mMeasuredHeight = getMeasuredHeight(); // 计算的底部布局的真实高度
     }
 
     /**
      * 设置状态
-     * @param state 状态:1、加载中 2、完成加载 3、到底了
+     * @param state 状态
      */
     public void setState(int state){
-        switch(state) {
-            case STATE_LOADING:
-                progressBar.setVisibility(View.VISIBLE);
-                mText.setText(loadingHint);
-                this.setVisibility(View.VISIBLE);
+        if (state == mState) return ;
+
+        if (state == STATE_LOADING) {	// 显示进度
+            progressBar.setVisibility(View.VISIBLE);
+            smoothScrollTo(mMeasuredHeight);
+        } else {
+            progressBar.setVisibility(View.INVISIBLE);
+        }
+
+        switch(state){
+            case STATE_NORMAL:
                 break;
-            case STATE_COMPLETE:
-                mText.setText(loadingDoneHint);
-                this.setVisibility(View.GONE);
+            case STATE_LOADING:
+                mStatusTextView.setText("正在加载...");
+                break;
+            case STATE_DONE:
+                mStatusTextView.setText("加载完成");
+                smoothScrollTo(0);
                 break;
             case STATE_NOMORE:
-                mText.setText(noMoreHint);
-                progressBar.setVisibility(View.GONE);
-                this.setVisibility(View.VISIBLE);
+
+                mStatusTextView.setText("已经到底了");
+                smoothScrollTo(mMeasuredHeight);
                 break;
+            default:
         }
+
+        mState = state;
+    }
+
+    public int getState() {
+        return mState;
+    }
+
+    @Override
+    public void loadMoreComplete() {
+        setState(STATE_DONE);
+    }
+
+    @Override
+    public void setNoMore(boolean noMore) {
+        if(noMore){
+            setState(STATE_NOMORE);
+        }
+    }
+
+    /**
+     * 设置刷新头高度
+     * @param height 高度
+     */
+    public void setVisibleHeight(int height) {
+        if (height < 0) height = 0;
+        LayoutParams lp = (LayoutParams) mContainer.getLayoutParams();
+        lp.height = height;
+        mContainer.setLayoutParams(lp);
+    }
+
+    public int getVisibleHeight() {
+        LayoutParams lp = (LayoutParams) mContainer.getLayoutParams();
+        return lp.height;
+    }
+
+    @Override
+    public void onMove(float delta) {
+        if(getVisibleHeight() > 0 || delta > 0) {
+            setVisibleHeight((int) delta + getVisibleHeight()); // 上拉滑动时，更新底部布局高度
+            if (getVisibleHeight() >= mMeasuredHeight) {
+                setState(STATE_LOADING);
+            }else {
+                setState(STATE_NORMAL);
+            }
+        }
+    }
+
+    @Override
+    public boolean releaseAction(float height) {
+        boolean isOnLoad = false;
+        int mHeight = getVisibleHeight();
+        if (mHeight == 0) // not visible.
+            isOnLoad = false;
+        // 显示高度大于底部布局高度，可以加载
+        if(getVisibleHeight() >= mMeasuredHeight &&  mState <= STATE_LOADING){
+            setState(STATE_LOADING);
+            isOnLoad = true;
+        }
+
+        if (mState != STATE_LOADING) {
+            smoothScrollTo(0);
+        }
+
+        if (mState == STATE_LOADING) {
+            int destHeight = mMeasuredHeight;
+            smoothScrollTo(destHeight);
+        }
+
+        return isOnLoad;
+    }
+
+    /**
+     * 滑动时加入动画
+     * @param destHeight
+     */
+    private void smoothScrollTo(int destHeight) {
+        // 初始化动画开始、结束值
+        ValueAnimator animator = ValueAnimator.ofInt(getVisibleHeight(), destHeight);
+        // 初始化动画时间
+        animator.setDuration(300).start();
+        // 监听动画
+        animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animation) {
+                setVisibleHeight((int) animation.getAnimatedValue());
+            }
+        });
+        // 开启动画
+        animator.start();
     }
 }

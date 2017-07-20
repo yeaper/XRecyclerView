@@ -1,6 +1,8 @@
 package com.yyp.xrecyclerview.widget;
 
 import android.content.Context;
+import android.support.design.widget.AppBarLayout;
+import android.support.design.widget.CoordinatorLayout;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
@@ -9,6 +11,7 @@ import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewParent;
 
 import com.yyp.xrecyclerview.widget.interfaces.XRecyclerViewLoadingListener;
 
@@ -24,12 +27,11 @@ public class XRecyclerView extends RecyclerView {
     public static final String TAG = "XRecyclerView";
     private boolean pullRefreshEnabled = true;
     private boolean loadingMoreEnabled = false;
-    private boolean isNoMore = false;
 
     private float mLastY = -1;
     XRecyclerViewLoadingListener mXRecyclerViewLoadingListener;
 
-    private static final float DRAG_RATE = 3; // 下拉速度
+    private static final float DRAG_RATE = 1.8f; // 下拉速度
     private AppBarStateChangeListener.State appbarState = AppBarStateChangeListener.State.EXPANDED;
 
     private ArrayList<View> mHeaderViews = new ArrayList<>();
@@ -45,7 +47,7 @@ public class XRecyclerView extends RecyclerView {
     private WrapAdapter mWrapAdapter;
     private final RecyclerView.AdapterDataObserver mDataObserver = new DataObserver();
 
-    private View mFootView;
+    private LoadMoreFooter mFooter;
 
     public XRecyclerView(Context context) {
         super(context);
@@ -83,22 +85,7 @@ public class XRecyclerView extends RecyclerView {
      * 初始化底部的加载更多布局
      */
     public void initFooterView(){
-        mFootView = new LoadMoreFooter(getContext());
-        mFootView.setVisibility(GONE);
-    }
-
-    /**
-     * 设置底部布局显示的字
-     * @param loading 加载中
-     * @param noMore 到底了
-     * @param loadingDone 加载完成
-     */
-    public void setFooterText(String loading, String noMore, String loadingDone){
-        if(mFootView instanceof LoadMoreFooter){
-            ((LoadMoreFooter) mFootView).setLoadingHint(loading);
-            ((LoadMoreFooter) mFootView).setNoMoreHint(noMore);
-            ((LoadMoreFooter) mFootView).setLoadingDoneHint(loadingDone);
-        }
+        mFooter = new LoadMoreFooter(getContext());
     }
 
     /**
@@ -108,8 +95,8 @@ public class XRecyclerView extends RecyclerView {
     public void setLoadingMoreEnabled(boolean enabled) {
         loadingMoreEnabled = enabled;
         if (!enabled) {
-            if (mFootView instanceof LoadMoreFooter) {
-                ((LoadMoreFooter)mFootView).setState(LoadMoreFooter.STATE_COMPLETE);
+            if (mFooter instanceof LoadMoreFooter) {
+                mFooter.loadMoreComplete();
             }
         }
     }
@@ -126,23 +113,18 @@ public class XRecyclerView extends RecyclerView {
      * 完成加载更多
      */
     public void loadMoreComplete(){
-        if(mFootView instanceof LoadMoreFooter){
-            ((LoadMoreFooter) mFootView).setState(LoadMoreFooter.STATE_COMPLETE);
+        if(mFooter instanceof LoadMoreFooter){
+            mFooter.loadMoreComplete();
         }else {
-            mFootView.setVisibility(GONE);
+            mFooter.setVisibility(GONE);
         }
     }
 
-    /**
-     * 没有更多数据
-     * @param noMore 没有更多数据的标志
-     */
-    public void setNoMore(boolean noMore){
-        isNoMore = noMore;
-        if(mFootView instanceof LoadMoreFooter){
-            ((LoadMoreFooter) mFootView).setState(isNoMore? LoadMoreFooter.STATE_NOMORE:LoadMoreFooter.STATE_COMPLETE);
+    public void setNoMore(boolean noMore) {
+        if(mFooter instanceof LoadMoreFooter){
+            mFooter.setNoMore(noMore);
         }else {
-            mFootView.setVisibility(GONE);
+            mFooter.setVisibility(GONE);
         }
     }
 
@@ -159,14 +141,12 @@ public class XRecyclerView extends RecyclerView {
      */
     public void refreshComplete() {
         mRefreshHeader.refreshComplete();
-        setNoMore(false);
     }
 
     /**
      * 刷新完成后，重置状态
      */
     public void reset(){
-        setNoMore(false);
         loadMoreComplete();
         refreshComplete();
     }
@@ -260,10 +240,34 @@ public class XRecyclerView extends RecyclerView {
     }
 
     /**
-     * 查找position的最大值
-     * @param lastPositions position数组
-     * @return 最大值
+     * 是否在顶部
+     * @return boolean
      */
+    private boolean isOnTop() {
+        return mRefreshHeader.getParent() != null;
+    }
+
+    /**
+     * 是否在底部
+     * @return boolean
+     */
+    private boolean isOnBottom(){
+        LayoutManager layoutManager = getLayoutManager();
+        int lastVisibleItemPosition = 0;
+        if(layoutManager instanceof GridLayoutManager){
+            lastVisibleItemPosition = ((GridLayoutManager) layoutManager).findLastVisibleItemPosition();
+        }else if(layoutManager instanceof LinearLayoutManager){
+            lastVisibleItemPosition = ((LinearLayoutManager) layoutManager).findLastVisibleItemPosition();
+        }else if(layoutManager instanceof StaggeredGridLayoutManager){
+            int[] into = new int[((StaggeredGridLayoutManager) layoutManager).getSpanCount()];
+            ((StaggeredGridLayoutManager) layoutManager).findLastVisibleItemPositions(into);
+            lastVisibleItemPosition = findMax(into);
+        }
+
+        return layoutManager.getChildCount() > 0
+                && lastVisibleItemPosition >= mWrapAdapter.getItemCount() - 2;
+    }
+
     private int findMax(int[] lastPositions) {
         int max = lastPositions[0];
         for (int value : lastPositions) {
@@ -272,47 +276,6 @@ public class XRecyclerView extends RecyclerView {
             }
         }
         return max;
-    }
-
-    /**
-     * 是否在顶部
-     * @return boolean
-     */
-    private boolean isOnTop() {
-        return mRefreshHeader.getParent() != null;
-    }
-
-    @Override
-    public void onScrollStateChanged(int state) {
-        super.onScrollStateChanged(state);
-        // 当滑动停止，且开启上拉加载时
-        if (state == RecyclerView.SCROLL_STATE_IDLE && loadingMoreEnabled) {
-
-            LayoutManager layoutManager = getLayoutManager();
-            int lastVisibleItemPosition;
-
-            // 获取最后一个可视的item的position
-            if (layoutManager instanceof GridLayoutManager) {
-                lastVisibleItemPosition = ((GridLayoutManager) layoutManager).findLastVisibleItemPosition();
-            } else if (layoutManager instanceof StaggeredGridLayoutManager) {
-                int[] into = new int[((StaggeredGridLayoutManager) layoutManager).getSpanCount()];
-                ((StaggeredGridLayoutManager) layoutManager).findLastVisibleItemPositions(into);
-                lastVisibleItemPosition = findMax(into);
-            } else {
-                lastVisibleItemPosition = ((LinearLayoutManager) layoutManager).findLastVisibleItemPosition();
-            }
-
-            // 到达底部时，显示上拉加载
-            if (layoutManager.getChildCount() > 0
-                    && lastVisibleItemPosition >= layoutManager.getItemCount() - 1 && !isNoMore) {
-                if (mFootView instanceof LoadMoreFooter) {
-                    ((LoadMoreFooter) mFootView).setState(LoadMoreFooter.STATE_LOADING);
-                } else {
-                    mFootView.setVisibility(View.VISIBLE);
-                }
-                mXRecyclerViewLoadingListener.onLoadMore();
-            }
-        }
     }
 
     @Override
@@ -327,20 +290,40 @@ public class XRecyclerView extends RecyclerView {
             case MotionEvent.ACTION_MOVE:
                 final float deltaY = ev.getRawY() - mLastY; // 纵轴滑动的距离
                 mLastY = ev.getRawY();
-                if (isOnTop() && pullRefreshEnabled && appbarState == AppBarStateChangeListener.State.EXPANDED) {
-                    mRefreshHeader.onMove(deltaY / DRAG_RATE);
-                    // 下拉距离不够大时，不调用刷新
-                    if (mRefreshHeader.getVisibleHeight() > 0 && mRefreshHeader.getState() < ArrowRefreshHeader.STATE_REFRESHING) {
-                        return false;
+                if(isOnTop()){
+                    if(pullRefreshEnabled && appbarState == AppBarStateChangeListener.State.EXPANDED){
+                        mRefreshHeader.onMove(deltaY / DRAG_RATE);
+                        // 下拉距离不够大时，不调用刷新
+                        if (mRefreshHeader.getVisibleHeight() > 0 && mRefreshHeader.getState() < ArrowRefreshHeader.STATE_REFRESHING) {
+                            return false;
+                        }
+                    }
+                }else if(isOnBottom()){
+                    if (loadingMoreEnabled) {
+                        mFooter.onMove(Math.abs(deltaY) / DRAG_RATE);
+                        // 上拉距离不够大时，不调用加载
+                        if (mFooter.getVisibleHeight() > 0 && mFooter.getState() < LoadMoreFooter.STATE_LOADING) {
+                            return false;
+                        }
                     }
                 }
                 break;
             default:
                 mLastY = -1; // reset
-                if (isOnTop() && pullRefreshEnabled && appbarState == AppBarStateChangeListener.State.EXPANDED) {
-                    if (mRefreshHeader.releaseAction()) {
-                        if (mXRecyclerViewLoadingListener != null) {
-                            mXRecyclerViewLoadingListener.onRefresh();
+                if (isOnTop()){
+                    if(pullRefreshEnabled && appbarState == AppBarStateChangeListener.State.EXPANDED) {
+                        if (mRefreshHeader.releaseAction()) {
+                            if (mXRecyclerViewLoadingListener != null) {
+                                mXRecyclerViewLoadingListener.onRefresh();
+                            }
+                        }
+                    }
+                }else if(isOnBottom()) {
+                    if(pullRefreshEnabled){
+                        if (mFooter.releaseAction(computeVerticalScrollExtent())) {
+                            if (mXRecyclerViewLoadingListener != null) {
+                                mXRecyclerViewLoadingListener.onLoadMore();
+                            }
                         }
                     }
                 }
@@ -424,7 +407,7 @@ public class XRecyclerView extends RecyclerView {
             } else if (isHeaderType(viewType)) {
                 return new SimpleViewHolder(getHeaderViewByType(viewType));
             }if (viewType == TYPE_FOOTER) {
-                return new SimpleViewHolder(mFootView);
+                return new SimpleViewHolder(mFooter);
             }
             return adapter.onCreateViewHolder(parent, viewType);
         }
@@ -559,7 +542,7 @@ public class XRecyclerView extends RecyclerView {
         }
     }
 
-    /*@Override
+    @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
         //解决和CollapsingToolbarLayout冲突的问题
@@ -590,5 +573,5 @@ public class XRecyclerView extends RecyclerView {
                 });
             }
         }
-    }*/
+    }
 }

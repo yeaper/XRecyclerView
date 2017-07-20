@@ -3,16 +3,16 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     xmlns:tools="http://schemas.android.com/tools"
-    android:gravity="bottom">
+    android:gravity="top">
 
     <RelativeLayout
-        android:id="@+id/listview_header_content"
+        android:id="@+id/footer_content"
         android:layout_width="match_parent"
         android:layout_height="80dp"
         android:paddingTop="10dp">
 
         <LinearLayout
-            android:id="@+id/listview_header_text"
+            android:id="@+id/footer_text"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:minWidth="100dp"
@@ -21,32 +21,20 @@
             android:orientation="vertical">
 
             <TextView
-                android:id="@+id/refresh_status_textview"
+                android:id="@+id/footer_status_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                tools:text="下拉刷新" />
+                tools:text="上拉加载" />
         </LinearLayout>
 
-        <ImageView
-            android:id="@+id/listview_header_arrow"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
-            android:layout_centerVertical="true"
-            android:layout_marginLeft="35dp"
-            android:layout_marginRight="10dp"
-            android:layout_toLeftOf="@id/listview_header_text"
-            android:src="@drawable/arrow_thin_down" />
-
         <ProgressBar
-            android:id="@+id/listview_header_progressbar"
+            android:id="@+id/footer_progressbar"
             android:layout_width="30dp"
             android:layout_height="30dp"
-            style="@style/Widget.AppCompat.ProgressBar"
-            android:layout_toLeftOf="@id/listview_header_text"
+            android:layout_toLeftOf="@id/footer_text"
             android:layout_centerVertical="true"
             android:layout_marginLeft="40dp"
-            android:layout_marginRight="10dp"
-            android:visibility="invisible" />
+            android:layout_marginRight="10dp" />
     </RelativeLayout>
 
 </LinearLayout>

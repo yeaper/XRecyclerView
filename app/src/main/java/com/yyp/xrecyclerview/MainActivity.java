@@ -38,12 +38,12 @@ public class MainActivity extends AppCompatActivity {
     public void initView(){
         xRecyclerView= (XRecyclerView) findViewById(R.id.mainXRecyclerView);
         // 先添加数据
-        for(;count<=10;){
+        for(;count<=16;){
             data.add(new Animals(count, "name"+count, count, "F"));
             count++;
         }
         adapter = new MainAdapter(this, data);
-        layoutManager = new GridLayoutManager(this, 3);
+        layoutManager = new GridLayoutManager(this, 2);
 
         xRecyclerView.setLayoutManager(layoutManager);
         xRecyclerView.setAdapter(adapter);
@@ -56,7 +56,7 @@ public class MainActivity extends AppCompatActivity {
                     public void run() {
                         count = 1;
                         data.clear();
-                        for(;count<=10;){
+                        for(;count<=20;){
                             data.add(new Animals(count, "name"+count, count, "F"));
                             count++;
                         }
@@ -70,8 +70,8 @@ public class MainActivity extends AppCompatActivity {
             public void onLoadMore() {
                 new Handler().postDelayed(new Runnable() {
                     public void run() {
-                        for(int i=0;i<10;i++,count++){
-                            if(count <= 40) {
+                        for(int i=0;i<15;i++,count++){
+                            if(count <= 60) {
                                 data.add(new Animals(count, "name"+count, count, "F"));
                                 adapter.refreshData(data);
                                 xRecyclerView.loadMoreComplete();
