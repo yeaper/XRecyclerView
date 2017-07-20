@@ -23,8 +23,9 @@ public class ArrowRefreshHeader extends LinearLayout implements BaseRefreshHeade
 	private LinearLayout mContainer;
     private ImageView mArrowImageView;
 	private TextView mStatusTextView;
-	private int mState = STATE_NORMAL;
     private ProgressBar progressBar;
+
+    private int mState = STATE_NORMAL;
 
 	private Animation mRotateUpAnim;
 	private Animation mRotateDownAnim;
@@ -48,23 +49,20 @@ public class ArrowRefreshHeader extends LinearLayout implements BaseRefreshHeade
 	}
 
 	private void initView() {
-		// 初始情况，设置下拉刷新view高度为0
 		mContainer = (LinearLayout) LayoutInflater.from(getContext()).inflate(
 				R.layout.xrecyclerview_refresh_header_view, null);
         LayoutParams lp = new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT);
         lp.setMargins(0, 0, 0, 0);
 		this.setLayoutParams(lp);
         this.setPadding(0, 0, 0, 0);
-
+        // 初始情况，设置下拉刷新view高度为0
 		addView(mContainer, new LayoutParams(LayoutParams.MATCH_PARENT, 0));
 		setGravity(Gravity.BOTTOM);
 
 		mArrowImageView = findViewById(R.id.listview_header_arrow);
 		mStatusTextView = findViewById(R.id.refresh_status_textview);
-
         //初始化加载圈
         progressBar = findViewById(R.id.listview_header_progressbar);
-        progressBar.setProgress(android.R.style.Widget_ProgressBar_Inverse);
 
         // 箭头向上旋转动画
 		mRotateUpAnim = new RotateAnimation(0.0f, -180.0f,
